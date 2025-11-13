@@ -1,13 +1,13 @@
+mod built {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 use envconfig::Envconfig;
 use tracing::{Instrument, Level, info, span};
 
 use gateway::app;
 use gateway::config::{Config, LogFormat};
 use gateway::error::Error;
-
-mod built {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
 
 #[tokio::main]
 async fn main() {

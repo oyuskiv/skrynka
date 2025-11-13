@@ -1,16 +1,20 @@
-use axum::{Router, routing::get};
+use axum::Router;
 use tokio::net::TcpListener;
 use tracing::{Instrument, info};
 
 use crate::error::Error;
+use crate::handler;
 
 pub async fn run(addr: String) -> Result<(), Error> {
     info!("start listening: {}", addr);
     let listener = TcpListener::bind(addr.clone()).await?;
-    let app = Router::new().route("/", get(|| async { "Hello, World!" }));
+
+    let app = Router::new().merge(handler::create_health_router());
+
     axum::serve(listener, app)
         .with_graceful_shutdown(graceful_shutdown_signal().in_current_span())
         .await?;
+
     info!("stop listening: {}", addr);
     Ok(())
 }
