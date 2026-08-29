@@ -1,7 +1,11 @@
 mod health;
+mod request;
+mod upload;
 
-use axum::{Router, routing::get};
+use axum::Router;
 
-pub fn create_health_router() -> Router {
-    Router::new().route("/health", get(health::get_health))
+pub fn router() -> Router {
+    Router::new()
+        .merge(health::router())
+        .merge(upload::router())
 }
