@@ -6,7 +6,7 @@ use tracing_subscriber::EnvFilter;
 
 #[derive(Envconfig)]
 struct Env {
-    #[envconfig(from = "SKRYNKA_GATEWAY_ADDRESS", default = "127.0.0.1:2345")]
+    #[envconfig(from = "SKRYNKA_GATEWAY_ADDRESS", default = "127.0.0.1:8080")]
     addr: String,
     #[envconfig(from = "SKRYNKA_GATEWAY_TRACING", default = "info")]
     tracing_level: String,
@@ -54,7 +54,7 @@ impl std::str::FromStr for LogFormat {
             _ => Err(error::ErrorInfo::new("expected ansi or json")
                 .with_reason(error::ErrorInfo::REASON_INVALID_CONFIG)
                 .with_domain(service::SERVICE_NAME)
-                .with_metadata(collections::HashMap::from([(
+                .with_metadata(collections::BTreeMap::from([(
                     "SKRYNKA_GATEWAY_LOG_FORMAT".to_string(),
                     s.to_string(),
                 )]))),
@@ -82,7 +82,7 @@ impl std::str::FromStr for TracingLevel {
             error::ErrorInfo::new(&detail)
                 .with_reason(error::ErrorInfo::REASON_INVALID_CONFIG)
                 .with_domain(service::SERVICE_NAME)
-                .with_metadata(collections::HashMap::from([(
+                .with_metadata(collections::BTreeMap::from([(
                     "SKRYNKA_GATEWAY_TRACING".to_string(),
                     s.to_string(),
                 )]))

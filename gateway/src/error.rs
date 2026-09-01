@@ -2,39 +2,12 @@ use std::{collections, fmt, io};
 
 use serde::{Deserialize, Serialize};
 
-use axum::{
-    Json, http,
-    response::{IntoResponse, Response},
-};
-
-/// The `@type` identifier for an `ErrorInfo` detail payload, matching the `google.rpc.ErrorInfo`
-/// proto used across Google APIs.
-const ERROR_INFO_TYPE_URL: &str = "type.googleapis.com/google.rpc.ErrorInfo";
+use crate::generated;
 
 /// Structured, machine-readable error details.
 ///
 /// `ErrorInfo` provides standard error payloads containing both human-readable
 /// messages for debugging and stable identifiers designed for programmatic handling.
-///
-/// Its [`IntoResponse`] impl renders it as a Google-style error response, following
-///
-/// ```json
-/// {
-///   "error": {
-///     "code": 400,
-///     "message": "missing field `email`",
-///     "status": "INVALID_ARGUMENT",
-///     "details": [
-///       {
-///         "@type": "type.googleapis.com/google.rpc.ErrorInfo",
-///         "reason": "INVALID_HTTP_REQUEST",
-///         "domain": "gateway.skrynka.dev",
-///         "metadata": { "field": "email" }
-///       }
-///     ]
-///   }
-/// }
-/// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ErrorInfo {
     /// HTTP status code or domain-specific numeric error code (e.g., `404`, `4001`).
@@ -63,14 +36,12 @@ pub struct ErrorInfo {
     ///
     /// Common keys include affected fields, system limits, or resource identifiers
     /// (e.g., `{"field": "email"}`).
-    metadata: collections::HashMap<String, String>,
+    metadata: collections::BTreeMap<String, String>,
 }
 
 impl ErrorInfo {
     /// Default fallback reason when the exact cause of an error cannot be determined
     /// or mapped to a more specific error category.
-    ///
-    /// Used for unhandled internal failures or unexpected panics.
     pub const REASON_UNKNOWN: &str = "UNKNOWN";
 
     /// Indicates that a configuration setting is missing, malformed, or invalid.
@@ -104,7 +75,7 @@ impl ErrorInfo {
             domain: String::new(),
             reason: ErrorInfo::REASON_UNKNOWN.to_string(),
             message: message.to_string(),
-            metadata: collections::HashMap::new(),
+            metadata: collections::BTreeMap::new(),
         }
     }
 
@@ -122,37 +93,34 @@ impl ErrorInfo {
 
     /// Sets logical grouping to which the "reason" belongs.
     pub fn with_domain(mut self, domain: &str) -> Self {
-        self.reason = domain.to_string();
+        self.domain = domain.to_string();
         self
     }
 
     /// Sets the contextual metadata key-value map.
-    pub fn with_metadata(mut self, md: collections::HashMap<String, String>) -> Self {
+    pub fn with_metadata(mut self, md: collections::BTreeMap<String, String>) -> Self {
         self.metadata = md;
         self
     }
 }
 
-impl IntoResponse for ErrorInfo {
-    fn into_response(self) -> Response {
-        let status = http::StatusCode::from_u16(self.code)
-            .unwrap_or(http::StatusCode::INTERNAL_SERVER_ERROR);
-
-        let response = ErrorResponse {
-            error: ErrorBody {
-                code: status.as_u16(),
-                message: &self.message,
-                status: canonical_status(status),
-                details: [ErrorDetail {
-                    type_url: ERROR_INFO_TYPE_URL,
-                    reason: &self.reason,
-                    domain: &self.domain,
-                    metadata: &self.metadata,
-                }],
+impl From<ErrorInfo> for generated::Error {
+    fn from(err: ErrorInfo) -> Self {
+        Self {
+            error: generated::Status {
+                code: Option::Some(err.code as i64),
+                message: Option::Some(err.message),
+                details: Option::Some(vec![generated::StatusDetail::ErrorInfo(
+                    generated::ErrorInfo {
+                        domain: err.domain,
+                        metadata: Option::Some(generated::ErrorInfoMetadata {
+                            additional_properties: err.metadata,
+                        }),
+                        reason: err.reason,
+                    },
+                )]),
             },
-        };
-
-        (status, Json(response)).into_response()
+        }
     }
 }
 
@@ -172,51 +140,4 @@ impl From<io::Error> for ErrorInfo {
     fn from(err: io::Error) -> Self {
         ErrorInfo::new(&err.to_string()).with_reason(ErrorInfo::REASON_IO_ERROR)
     }
-}
-
-/// Maps an HTTP status code to its canonical `google.rpc.Code` name.
-fn canonical_status(status: http::StatusCode) -> &'static str {
-    match status.as_u16() {
-        200 => "OK",
-        400 => "INVALID_ARGUMENT",
-        401 => "UNAUTHENTICATED",
-        403 => "PERMISSION_DENIED",
-        404 => "NOT_FOUND",
-        409 => "ALREADY_EXISTS",
-        429 => "RESOURCE_EXHAUSTED",
-        499 => "CANCELLED",
-        500 => "INTERNAL",
-        501 => "UNIMPLEMENTED",
-        503 => "UNAVAILABLE",
-        504 => "DEADLINE_EXCEEDED",
-        _ => "UNKNOWN",
-    }
-}
-
-/// A single entry in an error response's `details` array.
-///
-/// Mirrors the `google.rpc.ErrorInfo` message: a stable `reason` plus the `domain` of the
-/// service that produced it, and free-form `metadata`.
-#[derive(Debug, Clone, Serialize)]
-struct ErrorDetail<'a> {
-    #[serde(rename = "@type")]
-    type_url: &'static str,
-    reason: &'a str,
-    domain: &'a str,
-    metadata: &'a collections::HashMap<String, String>,
-}
-
-/// The `google.rpc.Status`- shaped body of an error response.
-#[derive(Debug, Clone, Serialize)]
-struct ErrorBody<'a> {
-    code: u16,
-    message: &'a str,
-    status: &'static str,
-    details: [ErrorDetail<'a>; 1],
-}
-
-/// Top-level error response (envelope: `{"error": {...}}`).
-#[derive(Debug, Clone, Serialize)]
-struct ErrorResponse<'a> {
-    error: ErrorBody<'a>,
 }

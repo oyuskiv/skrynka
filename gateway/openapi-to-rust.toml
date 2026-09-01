@@ -1,0 +1,14 @@
+[generator]
+spec_path = "openapi.yaml"
+output_dir = "src/generated"
+module_name = "generated"
+
+[features]
+enable_async_client = false
+
+[server]
+framework = "axum"
+operations = [
+    "health_probe"
+]
+prune_models = true

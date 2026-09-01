@@ -5,13 +5,17 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
+async-trait = { workspace = true }
 axum = { workspace = true }
 envconfig = { workspace = true }
+http-body-util = { workspace = true }
+jsonschema = { workspace = true }
+mime = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
 
 [build-dependencies]
 built = { workspace = true }
