@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: Gateway Service
+  version: 0.0.1
+  description: Gateway service exposes API to a distributed storage.
+
+paths:
+  /health:
+    get:
+      summary: Health probe is used to probe whether the service is able to handle requests.
+      operationId: health_probe
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusResponse"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailableError"
+
+components:
+  responses:
+    ServiceUnavailableError:
+      description: Service unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    StatusResponse:
+      description: Common status response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Status"
+
+  schemas:
+    Error:
+      type: object
+      description: Error payload.
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/Status"
+    Status:
+      type: object
+      description: Common status payload.
+      properties:
+        code:
+          type: integer
+          description: HTTP status code or domain-specific numeric error code.
+          example: 200
+        message:
+          type: string
+          description: A developer-facing  message.
+          example: "OK"
+        details:
+          type: array
+          description: Polymorphic payload list carrying details.
+          items:
+            $ref: "#/components/schemas/StatusDetail"
+    StatusDetail:
+      type: object
+      description: Polymorphic wrapper for 'Status.details' payloads.
+      required:
+        - "@type"
+      properties:
+        "@type":
+          type: string
+          description: A type identifying the payload schema.
+          example: "skrynka.apis/ErrorInfo"
+      discriminator:
+        propertyName: "@type"
+      oneOf:
+        - $ref: "#/components/schemas/ErrorInfo"
+    ErrorInfo:
+      type: object
+      description: Describes the cause of the error with structured details.
+      required:
+        - "@type"
+        - reason
+        - domain
+      properties:
+        "@type":
+          type: string
+          enum:
+            - "skrynka.apis/ErrorInfo"
+          default: "skrynka.apis/ErrorInfo"
+          example: "skrynka.apis/ErrorInfo"
+        reason:
+          type: string
+          description: The reason for the error.
+          example: "UPSTREAM_TEMPORARILY_UNAVAILABLE"
+        domain:
+          type: string
+          description: The logical domain in which the error occurred.
+          example: "gateway.skrynka.dev"
+        metadata:
+          type: object
+          description: Key-value metadata providing context.
+          additionalProperties:
+            type: string
+          example:
+            service: "gateway"
+            retry_after: "5s"
